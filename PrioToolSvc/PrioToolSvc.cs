@@ -1,9 +1,4 @@
-﻿/*
- * PrioToolSvc.cs
- * This file contains the actual brains of the program.
- */
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -14,37 +9,42 @@ using System.Threading.Tasks;
 
 namespace PrioToolSvc
 {
-    public class PrioToolSvc
+    internal class PrioToolSvc
     {
-        private bool dryrun = false;
+        private readonly bool dryrun = false;
         private bool ruleset_changed = false;
         private bool shutdown_time = false;
 
-        private FileSystemWatcher rule_watcher = new();
-        private List<PrioRule> rules = new();
+        private FileSystemWatcher rule_watcher;
+        private List<PrioRule> rules;
 
 
-        private void VibeCheck()
-        {
-            foreach (PrioRule rule in rules)
-            {
-                rule.Enforce();
-            }
-        }
-
-        
         private void ServiceLoop()
         {
-            while (!shutdown_time)
+            while (!this.shutdown_time && !this.ruleset_changed)
             {
-                VibeCheck();
+                foreach (PrioRule rule in this.rules)
+                {
+                    rule.Enforce(this.dryrun);
+                }
+            }
+
+            if (this.ruleset_changed)
+            {
+                this.ruleset_changed = false;
+                this.Restart();
+            }
+
+            foreach (PrioRule rule in this.rules)
+            {
+                rule.Cleanup();
             }
         }
 
 
         private void OnChanged(object sender, FileSystemEventArgs e)
         {
-            
+            this.ruleset_changed = true;
         }
 
 
@@ -65,13 +65,24 @@ namespace PrioToolSvc
             // check if ruleset.txt exists, and if not, make it
             if (!File.Exists("ruleset.txt"))
             {
-                File.Create("ruleset.txt");
+                FileStream stream = File.Create("ruleset.txt");
+                stream.Close();
             }
 
             string[] ruleset = File.ReadAllLines("ruleset.txt");
             foreach (string rule in ruleset)
             {
+                // skip empty lines
+                if (rule == "")
+                {
+                    continue;
+                }
+
                 string[] rule_parts = rule.Split(':');
+                for (int i = 0; i < rule_parts.Length; i++)
+                {
+                    rule_parts[i] = rule_parts[i].Trim();
+                }
 
                 // minimal sanity checking
                 if (rule_parts.Length < 3 || rule_parts.Length > 4)
@@ -88,17 +99,17 @@ namespace PrioToolSvc
 
                 if (rule_parts.Length == 3)
                 {
-                    this.rules.Add(new PrioRule(rule_parts[1], int.Parse(rule_parts[2])));
+                    this.rules.Add(new PrioRule(rule_parts[0], rule_parts[1], (ProcessPriorityClass) int.Parse(rule_parts[2])));
                 }
                 else
                 {
-                    this.rules.Add(new PrioRule(rule_parts[1], int.Parse(rule_parts[2]), rule_parts[3]));
+                    this.rules.Add(new PrioRule(rule_parts[0], rule_parts[1], (ProcessPriorityClass) int.Parse(rule_parts[2]), rule_parts[3]));
                 }
             }
 
-            // now we set appropriate sleep values to spread out the load over five seconds
-            int sleep_time = 5000 / this.rules.Count;
-            int leftover = 5000 % this.rules.Count;
+            // now we set appropriate sleep values to spread out the work over five seconds
+            int sleep_time = this.rules.Count > 0 ? 5000 / this.rules.Count : 0;
+            int leftover = this.rules.Count > 0 ? 5000 % this.rules.Count : 0;
             foreach (PrioRule rule in this.rules)
             {
                 rule.sleep_time = sleep_time;
@@ -111,8 +122,23 @@ namespace PrioToolSvc
         }
 
 
+        public void Restart()
+        {
+            foreach (PrioRule rule in this.rules)
+            {
+                rule.Cleanup();
+            }
+
+            this.rules.Clear();
+            this.BuildRuleset();
+            this.ServiceLoop();
+        }
+
+
         public void Start()
         {
+            // Set process priority to below normal
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal;
 
             // watch ruleset.txt for changes made by the UI
             this.rule_watcher.Path = Directory.GetCurrentDirectory();
@@ -121,6 +147,7 @@ namespace PrioToolSvc
             this.rule_watcher.Changed += new FileSystemEventHandler(OnChanged);
             this.rule_watcher.EnableRaisingEvents = true;
 
+            this.BuildRuleset();
             this.ServiceLoop();
         }
 
@@ -134,6 +161,8 @@ namespace PrioToolSvc
         public PrioToolSvc(bool dryrun)
         {
             this.dryrun = dryrun;
+            this.rule_watcher = new FileSystemWatcher();
+            this.rules = new List<PrioRule>();
         }
     }
 }

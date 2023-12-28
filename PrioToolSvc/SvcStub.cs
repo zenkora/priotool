@@ -1,23 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+﻿using System.ServiceProcess;
 using System.Threading.Tasks;
-using System.ServiceProcess;
 
 namespace PrioToolSvc
 {
-    // entry point when launched by SCM
     public class SvcStub : ServiceBase
     {
-        private readonly PrioToolSvc svc = new(false);
+        private readonly PrioToolSvc svc;
 
+        public SvcStub()
+        {
+            svc = new PrioToolSvc(false);
+        }
 
         protected override void OnStart(string[] args)
         {
-            svc.Start();
+            Task.Run(() => svc.Start());
         }
-
 
         protected override void OnStop()
         {

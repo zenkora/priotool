@@ -1,22 +1,15 @@
-﻿/*
- * EntryPoint.cs
- * This file contains the entry point for the program and figures out whether
- * it's being launched in a console or by SCM.
- */
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Security.Principal;
+using System.ServiceProcess;
 
-namespace PrioToolSvc // Note: actual namespace depends on the project name.
+namespace PrioToolSvc
 {
     internal class EntryPoint
     {
-
-
-
         static bool IsRunningAsAdmin()
         {
             WindowsIdentity identity = WindowsIdentity.GetCurrent();
@@ -27,30 +20,37 @@ namespace PrioToolSvc // Note: actual namespace depends on the project name.
 
         static void Main(string[] args)
         {
-            List<string> args_list = args.ToList();
-            bool dryrun = false;
-            bool notify = false;
+            bool dryrun = args.Contains("dryrun");
+            bool daemon = args.Contains("daemon");
 
-            if (args.Contains("dryrun")) dryrun = true;
+            if (!IsRunningAsAdmin() && !dryrun)
+            {
+                Console.WriteLine("This program needs admin privileges.");
+                Console.ReadLine();
+                return;
+            } else if (dryrun | daemon)
+            {
+                PrioToolSvc svc = new(dryrun);
+                svc.Start();
+            } else
+            {
+                // fork to the background (in the weirdest fucking way)
+                ProcessStartInfo startInfo = new ProcessStartInfo();
+                startInfo.FileName = Assembly.GetExecutingAssembly().Location.Replace(".dll", ".exe");
+                startInfo.Arguments = "daemon";
+                startInfo.CreateNoWindow = true;
+                startInfo.UseShellExecute = false;
+                startInfo.Verb = "runas";
 
-            // check if we're starting interactively or as a service
-            if (Environment.UserInteractive)
-            {
-                if (!IsRunningAsAdmin())
+                // Start the process
+                Process forked_p = Process.Start(startInfo);
+
+                if (forked_p is not null)
                 {
-                    Console.WriteLine("This program needs admin privileges.");
-                    return;
+                    int forked_pid = forked_p.Id;
+                    Console.WriteLine("Forked to PID:");
+                    Console.WriteLine(forked_pid);
                 }
-                else
-                {
-                    PrioToolSvc svc = new(dryrun);
-                    svc.Start();
-                }
-            }
-            else
-            {
-                // if we're here, we're being started by SCM
-                System.ServiceProcess.ServiceBase.Run(new SvcStub());
             }
         }
     }

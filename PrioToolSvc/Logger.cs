@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace PrioToolSvc
 {
-    public static class Logger
+    internal static class Logger
     {
         // rolling list of the last X lines of output
         private static LinkedList<string> log = new();
@@ -51,6 +51,17 @@ namespace PrioToolSvc
         }
 
 
+        public static void PrioDryEnforce(string target_proc, string? dependent_proc, ProcessPriorityClass prio)
+        {
+            string line = $"[{DateTime.Now}] found process ({target_proc}), pretending to apply priority {prio}";
+            if (dependent_proc is not null)
+            {
+                line += $" because {dependent_proc} is running";
+            }
+            Write(line);
+        }
+
+
         public static void Pebkac(string msg)
         {
             Write($"[{DateTime.Now}] PEBKAC: {msg}");
@@ -63,7 +74,7 @@ namespace PrioToolSvc
             // try to dump the log, and log the failure if it fails
             try
             {
-                File.WriteAllLines("log.txt", log);
+                File.WriteAllLines("svc_log.txt", log);
             }
             catch (Exception e)
             {
