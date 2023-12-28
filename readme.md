@@ -11,7 +11,7 @@ everything else. Or you are just this autistic.
 - .NET 6.0
 
 ### Installation
-**Download the current version of Prio Tool.**
+[Download the current version of Prio Tool.](https://github.com/zenkora/priotool/releases/tag/v1)
 
 Extract that zip somewhere like `C:\Extras` or wherever you put things that
 don't have an installer. You can make shortcuts and pin them somewhere
