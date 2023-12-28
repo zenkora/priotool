@@ -43,11 +43,11 @@ namespace PrioToolUI
             {
                 case "Idle":
                     return ProcessPriorityClass.Idle;
-                case "Below Normal":
+                case "BelowNormal":
                     return ProcessPriorityClass.BelowNormal;
                 case "Normal":
                     return ProcessPriorityClass.Normal;
-                case "Above Normal":
+                case "AboveNormal":
                     return ProcessPriorityClass.AboveNormal;
                 case "High":
                     return ProcessPriorityClass.High;

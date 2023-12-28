@@ -27,13 +27,22 @@ namespace PrioToolSvc
             {
                 Console.WriteLine("This program needs admin privileges.");
                 Console.ReadLine();
-                return;
             } else if (dryrun | daemon)
             {
                 PrioToolSvc svc = new(dryrun);
                 svc.Start();
             } else
             {
+                // first make sure there isn't already a daemon running
+                Process[] instances = Process.GetProcessesByName("PrioToolSvc");
+                if (instances.Length > 1)
+                {
+                    Console.WriteLine("There is already a daemon running.");
+                    Console.ReadLine();
+                    return;
+                }
+
+
                 // fork to the background (in the weirdest fucking way)
                 ProcessStartInfo startInfo = new ProcessStartInfo();
                 startInfo.FileName = Assembly.GetExecutingAssembly().Location.Replace(".dll", ".exe");
